@@ -103,8 +103,8 @@ wildlife_model = load_model()
 if "last_alert_time" not in st.session_state:
     st.session_state.last_alert_time = {}
 
-if "alerted_track_ids" not in st.session_state:
-    st.session_state.alerted_track_ids = set()
+if "alerted_tracks" not in st.session_state:
+    st.session_state.alerted_tracks = set()
 
 
 # --------------------------------
@@ -377,33 +377,36 @@ if uploaded_file is not None:
                     ]["confidence"] = confidence
 
 
-                # ------------------------
-                # Alert cooldown
+               # ------------------------
+                # Alert control
                 # ------------------------
 
                 current_time = time.time()
 
-                last_alert = (
-                    st.session_state
-                    .last_alert_time
-                    .get(animal, 0)
+                # Unique key for this animal and tracking ID
+                alert_key = f"{animal}_{track_id}"
+
+                # Last alert time for this animal
+                last_alert = st.session_state.last_alert_time.get(animal, 0)
+
+                time_since_alert = current_time - last_alert
+
+                # Debug information
+                status_text.write(
+                    f"Frame {frame_number} | "
+                    f"{animal} | "
+                    f"Track ID: {track_id} | "
+                    f"Confidence: {confidence:.2f}"
                 )
 
-                time_since_alert = (
-                    current_time -
-                    last_alert
-                )
-
+                # Send alert only if:
+                # 1. This animal+track has not already alerted
+                # 2. Cooldown for this animal has expired
 
                 if (
-                    track_id
-                    not in st.session_state
-                    .alerted_track_ids
-
+                    alert_key not in st.session_state.alerted_tracks
                     and
-
-                    time_since_alert
-                    >= ALERT_COOLDOWN
+                    time_since_alert >= ALERT_COOLDOWN
                 ):
 
                     success = send_alert(
@@ -414,19 +417,21 @@ if uploaded_file is not None:
 
                     if success:
 
-                        st.session_state \
-                            .alerted_track_ids \
-                            .add(track_id)
+                        # Remember this animal + track
+                        st.session_state.alerted_tracks.add(
+                            alert_key
+                        )
 
-                        st.session_state \
-                            .last_alert_time[
-                                animal
-                            ] = current_time
+                        # Start cooldown for this animal
+                        st.session_state.last_alert_time[
+                            animal
+                        ] = current_time
 
                         st.success(
                             f"🚨 Alert sent: "
-                            f"{animal} "
-                            f"({confidence:.2f})"
+                            f"{animal} | "
+                            f"Track ID: {track_id} | "
+                            f"Confidence: {confidence:.2f}"
                         )
 
 
